@@ -1,0 +1,31 @@
+# Dependencies
+frontend/node_modules/
+
+# Build artifacts
+frontend/dist/
+backend/abbado
+backend/internal/server/frontend/
+
+# Data
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Env
+.env
+.env.*
+reset.sh
