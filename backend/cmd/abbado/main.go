@@ -23,6 +23,9 @@ func dataDir() string {
 	if err != nil {
 		log.Fatalf("Failed to get home directory: %v", err)
 	}
+	if version == "dev" {
+		return filepath.Join(home, ".abbado-dev")
+	}
 	return filepath.Join(home, ".abbado")
 }
 
