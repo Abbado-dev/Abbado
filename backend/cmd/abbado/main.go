@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -14,6 +17,8 @@ import (
 	"github.com/raznak/abbado/internal/database"
 	"github.com/raznak/abbado/internal/server"
 )
+
+const repo = "abbado-dev/abbado"
 
 // version is set at build time via -ldflags.
 var version = "dev"
@@ -49,6 +54,8 @@ func main() {
 		cmdStatus()
 	case "logs":
 		cmdLogs()
+	case "upgrade":
+		cmdUpgrade()
 	case "serve":
 		// Internal: runs the actual server (called by start in background).
 		serve()
@@ -178,6 +185,101 @@ func cmdLogs() {
 	tail.Stdout = os.Stdout
 	tail.Stderr = os.Stderr
 	tail.Run()
+}
+
+func cmdUpgrade() {
+	fmt.Println("Checking for updates...")
+
+	// Fetch latest release tag from GitHub.
+	resp, err := http.Get(fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo))
+	if err != nil {
+		log.Fatalf("Failed to check for updates: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Fatalf("Failed to parse release info: %v", err)
+	}
+
+	if release.TagName == "" {
+		log.Fatal("No release found")
+	}
+
+	if release.TagName == version {
+		fmt.Printf("Already up to date (%s)\n", version)
+		return
+	}
+
+	fmt.Printf("Updating %s → %s\n", version, release.TagName)
+
+	// Determine binary name.
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+	assetName := fmt.Sprintf("abbado-%s-%s", goos, goarch)
+	downloadURL := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, release.TagName, assetName)
+
+	// Download to temp file.
+	fmt.Printf("Downloading %s...\n", downloadURL)
+	dlResp, err := http.Get(downloadURL)
+	if err != nil {
+		log.Fatalf("Download failed: %v", err)
+	}
+	defer dlResp.Body.Close()
+
+	if dlResp.StatusCode != 200 {
+		log.Fatalf("Download failed: HTTP %d (no binary for %s/%s?)", dlResp.StatusCode, goos, goarch)
+	}
+
+	tmp, err := os.CreateTemp("", "abbado-upgrade-*")
+	if err != nil {
+		log.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := io.Copy(tmp, dlResp.Body); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		log.Fatalf("Download failed: %v", err)
+	}
+	tmp.Close()
+
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		os.Remove(tmpPath)
+		log.Fatalf("Failed to set permissions: %v", err)
+	}
+
+	// Replace current binary.
+	exe, err := os.Executable()
+	if err != nil {
+		os.Remove(tmpPath)
+		log.Fatalf("Failed to get executable path: %v", err)
+	}
+	exe, _ = filepath.EvalSymlinks(exe)
+
+	if err := os.Rename(tmpPath, exe); err != nil {
+		// Rename might fail across filesystems — try copy.
+		src, _ := os.Open(tmpPath)
+		dst, dstErr := os.Create(exe)
+		if dstErr != nil {
+			src.Close()
+			os.Remove(tmpPath)
+			log.Fatalf("Failed to replace binary (try with sudo): %v", dstErr)
+		}
+		io.Copy(dst, src)
+		src.Close()
+		dst.Close()
+		os.Remove(tmpPath)
+	}
+
+	fmt.Printf("Updated to %s\n", release.TagName)
+
+	// If running as daemon, remind to restart.
+	if pid := readPID(); pid > 0 && processAlive(pid) {
+		fmt.Println("Run 'abbado stop && abbado start' to restart with the new version.")
+	}
 }
 
 func serve() {
