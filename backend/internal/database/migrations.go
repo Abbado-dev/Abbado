@@ -17,14 +17,22 @@ var schema = []string{
 		updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f','now'))
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS projects (
+	`CREATE TABLE IF NOT EXISTS workspaces (
 		id         TEXT PRIMARY KEY,
 		name       TEXT NOT NULL,
-		repo_path  TEXT NOT NULL UNIQUE,
-		mode       TEXT NOT NULL DEFAULT 'worktree',
-		commands   TEXT,
 		position   INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f','now'))
+	)`,
+
+	`CREATE TABLE IF NOT EXISTS projects (
+		id           TEXT PRIMARY KEY,
+		workspace_id TEXT REFERENCES workspaces(id),
+		name         TEXT NOT NULL,
+		repo_path    TEXT NOT NULL UNIQUE,
+		mode         TEXT NOT NULL DEFAULT 'worktree',
+		commands     TEXT,
+		position     INTEGER NOT NULL DEFAULT 0,
+		created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f','now'))
 	)`,
 
 	`CREATE TABLE IF NOT EXISTS sessions (
@@ -66,6 +74,7 @@ var schema = []string{
 // Safe ALTER statements — these may fail if column already exists, which is fine.
 var alterStatements = []string{
 	`ALTER TABLE sessions ADD COLUMN commands TEXT`,
+	`ALTER TABLE projects ADD COLUMN workspace_id TEXT REFERENCES workspaces(id)`,
 }
 
 // Migrate runs all schema statements.

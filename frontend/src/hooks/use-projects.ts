@@ -29,7 +29,7 @@ export function useCreateProject() {
 export function useUpdateProject() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name: string; mode: ProjectMode; commands?: ProjectCommand[] }) =>
+    mutationFn: ({ id, ...data }: { id: string; name: string; mode: ProjectMode; commands?: ProjectCommand[]; workspace_id?: string }) =>
       projectsApi.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
   })

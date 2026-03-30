@@ -5,7 +5,7 @@ dev:
 	@make -j2 dev-backend dev-frontend
 
 dev-backend:
-	cd backend && go run ./cmd/abbado
+	cd backend && ABBADO_PORT=7778 go run ./cmd/abbado
 
 dev-frontend:
 	cd frontend && npm run dev

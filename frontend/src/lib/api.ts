@@ -27,6 +27,13 @@ export type Agent = {
   updated_at: string
 }
 
+export type Workspace = {
+  id: string
+  name: string
+  position: number
+  created_at: string
+}
+
 export type ProjectMode = 'worktree' | 'direct'
 
 export type ProjectCommand = {
@@ -37,6 +44,7 @@ export type ProjectCommand = {
 
 export type Project = {
   id: string
+  workspace_id?: string
   name: string
   repo_path: string
   mode: ProjectMode
@@ -66,6 +74,20 @@ export type Session = {
   updated_at: string
 }
 
+// --- Workspaces ---
+
+export const workspacesApi = {
+  list: () => request<Workspace[]>('/workspaces'),
+  create: (data: { name: string }) =>
+    request<Workspace>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { name: string }) =>
+    request<Workspace>(`/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    request<void>(`/workspaces/${id}`, { method: 'DELETE' }),
+  reorder: (ids: string[]) =>
+    request<void>('/workspaces/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
+}
+
 // --- Agents ---
 
 export const agentsApi = {
@@ -82,9 +104,9 @@ export const agentsApi = {
 
 export const projectsApi = {
   list: () => request<Project[]>('/projects'),
-  create: (data: Pick<Project, 'name' | 'repo_path'> & { mode?: ProjectMode }) =>
+  create: (data: Pick<Project, 'name' | 'repo_path'> & { mode?: ProjectMode; workspace_id?: string }) =>
     request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: { name: string; mode: ProjectMode; commands?: ProjectCommand[] }) =>
+  update: (id: string, data: { name: string; mode: ProjectMode; commands?: ProjectCommand[]; workspace_id?: string }) =>
     request<Project>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) =>
     request<void>(`/projects/${id}`, { method: 'DELETE' }),
