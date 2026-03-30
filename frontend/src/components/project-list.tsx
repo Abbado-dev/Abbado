@@ -62,11 +62,10 @@ import { useWorkspaces, useCreateWorkspace, useUpdateWorkspace, useDeleteWorkspa
 import { useQueryClient } from "@tanstack/react-query"
 import { projectsApi, sessionsApi, workspacesApi } from "@/lib/api"
 import type { Project, Session } from "@/lib/api"
-import { cn } from "@/lib/utils"
 
 // --- Drag handle ---
 
-function DragHandle({ listeners, attributes }: { listeners?: Record<string, Function>; attributes?: Record<string, unknown> }) {
+function DragHandle({ listeners, attributes }: { listeners?: ReturnType<typeof useSortable>["listeners"]; attributes?: ReturnType<typeof useSortable>["attributes"] }) {
   return (
     <button
       type="button"
