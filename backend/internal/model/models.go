@@ -14,6 +14,14 @@ type Agent struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+// Workspace is a logical group of projects (purely organizational).
+type Workspace struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // ProjectMode defines how sessions run in a project.
 type ProjectMode string
 
@@ -31,13 +39,14 @@ type ProjectCommand struct {
 
 // Project represents a local git repository.
 type Project struct {
-	ID        string           `json:"id"`
-	Name      string           `json:"name"`
-	RepoPath  string           `json:"repo_path"`
-	Mode      ProjectMode      `json:"mode"`
-	Commands  []ProjectCommand `json:"commands,omitempty"`
-	Position  int              `json:"position"`
-	CreatedAt time.Time        `json:"created_at"`
+	ID          string           `json:"id"`
+	WorkspaceID string           `json:"workspace_id,omitempty"`
+	Name        string           `json:"name"`
+	RepoPath    string           `json:"repo_path"`
+	Mode        ProjectMode      `json:"mode"`
+	Commands    []ProjectCommand `json:"commands,omitempty"`
+	Position    int              `json:"position"`
+	CreatedAt   time.Time        `json:"created_at"`
 }
 
 // SessionStatus represents the lifecycle state of a session.

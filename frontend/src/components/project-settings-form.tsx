@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { IconPicker } from "@/components/icon-picker"
 import { useUpdateProject } from "@/hooks/use-projects"
+import { useWorkspaces } from "@/hooks/use-workspaces"
 import type { Project, ProjectCommand, ProjectMode } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -17,9 +18,11 @@ interface ProjectSettingsFormProps {
 
 export function ProjectSettingsForm({ project, onSuccess }: ProjectSettingsFormProps) {
   const updateProject = useUpdateProject()
+  const { data: workspaces } = useWorkspaces()
 
   const [name, setName] = useState(project.name)
   const [mode, setMode] = useState<ProjectMode>(project.mode)
+  const [workspaceId, setWorkspaceId] = useState(project.workspace_id ?? "")
   const [commands, setCommands] = useState<ProjectCommand[]>(project.commands ?? [])
 
   function addCommand() {
@@ -42,7 +45,7 @@ export function ProjectSettingsForm({ project, onSuccess }: ProjectSettingsFormP
     const filtered = commands.filter((c) => c.label.trim() && c.command.trim())
 
     updateProject.mutate(
-      { id: project.id, name: name.trim(), mode, commands: filtered.length > 0 ? filtered : undefined },
+      { id: project.id, name: name.trim(), mode, commands: filtered.length > 0 ? filtered : undefined, workspace_id: workspaceId || undefined },
       { onSuccess }
     )
   }
@@ -54,6 +57,24 @@ export function ProjectSettingsForm({ project, onSuccess }: ProjectSettingsFormP
         <Label htmlFor="proj-name">Display Name</Label>
         <Input id="proj-name" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
+
+      {/* Workspace */}
+      {workspaces && workspaces.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="proj-workspace">Workspace</Label>
+          <select
+            id="proj-workspace"
+            value={workspaceId}
+            onChange={(e) => setWorkspaceId(e.target.value)}
+            className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">None</option>
+            {workspaces.map((ws) => (
+              <option key={ws.id} value={ws.id}>{ws.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Mode */}
       <div className="space-y-3">

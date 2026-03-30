@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { GitBranchIcon, FolderIcon } from "lucide-react"
+import { GitBranchIcon, FolderIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { PathInput } from "@/components/path-input"
 import { useCreateProject } from "@/hooks/use-projects"
+import { useWorkspaces, useCreateWorkspace } from "@/hooks/use-workspaces"
 import type { ProjectMode } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -16,10 +17,15 @@ interface CreateProjectFormProps {
 
 export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
   const createProject = useCreateProject()
+  const { data: workspaces } = useWorkspaces()
+  const createWorkspace = useCreateWorkspace()
 
   const [name, setName] = useState("")
   const [repoPath, setRepoPath] = useState("")
   const [mode, setMode] = useState<ProjectMode>("direct")
+  const [workspaceId, setWorkspaceId] = useState("")
+  const [newWorkspaceName, setNewWorkspaceName] = useState("")
+  const [showNewWorkspace, setShowNewWorkspace] = useState(false)
   const [nameManuallySet, setNameManuallySet] = useState(false)
 
   function handlePathChange(path: string) {
@@ -36,18 +42,36 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
     setNameManuallySet(true)
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleCreateWorkspace() {
+    if (!newWorkspaceName.trim()) return
+    const ws = await createWorkspace.mutateAsync({ name: newWorkspaceName.trim() })
+    setWorkspaceId(ws.id)
+    setNewWorkspaceName("")
+    setShowNewWorkspace(false)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const cleanPath = repoPath.replace(/\/+$/, "")
     if (!name.trim() || !cleanPath) return
 
+    // Create workspace inline if the user typed a name but didn't click "Create".
+    let wsId = workspaceId
+    if (!wsId && showNewWorkspace && newWorkspaceName.trim()) {
+      const ws = await createWorkspace.mutateAsync({ name: newWorkspaceName.trim() })
+      wsId = ws.id
+    }
+
     createProject.mutate(
-      { name: name.trim(), repo_path: cleanPath, mode },
+      { name: name.trim(), repo_path: cleanPath, mode, workspace_id: wsId || undefined },
       {
         onSuccess: () => {
           setName("")
           setRepoPath("")
           setMode("direct")
+          setWorkspaceId("")
+          setNewWorkspaceName("")
+          setShowNewWorkspace(false)
           setNameManuallySet(false)
           onSuccess?.()
         },
@@ -80,6 +104,44 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
         />
+      </div>
+
+      {/* Workspace */}
+      <div className="space-y-2">
+        <Label>Workspace</Label>
+        <div className="flex gap-2">
+          <select
+            value={workspaceId}
+            onChange={(e) => setWorkspaceId(e.target.value)}
+            className="flex h-8 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">None</option>
+            {workspaces?.map((ws) => (
+              <option key={ws.id} value={ws.id}>{ws.name}</option>
+            ))}
+          </select>
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowNewWorkspace(!showNewWorkspace)}>
+            <PlusIcon className="size-3.5" />
+          </Button>
+        </div>
+        {showNewWorkspace && (
+          <div className="flex gap-2">
+            <Input
+              autoFocus
+              placeholder="Workspace name"
+              value={newWorkspaceName}
+              onChange={(e) => setNewWorkspaceName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateWorkspace() } }}
+              className="text-sm"
+            />
+            <Button type="button" size="sm" onClick={handleCreateWorkspace} disabled={!newWorkspaceName.trim()}>
+              Create
+            </Button>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Group related projects together.
+        </p>
       </div>
 
       <Separator />

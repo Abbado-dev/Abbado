@@ -23,7 +23,7 @@ func NewProjectService(db *sql.DB) *ProjectService {
 
 // List returns all projects ordered by creation date.
 func (s *ProjectService) List() ([]model.Project, error) {
-	rows, err := s.db.Query(`SELECT id, name, repo_path, mode, commands, position, created_at FROM projects ORDER BY position ASC, created_at DESC`)
+	rows, err := s.db.Query(`SELECT id, workspace_id, name, repo_path, mode, commands, position, created_at FROM projects ORDER BY position ASC, created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("project.List: query failed: %w", err)
 	}
@@ -51,9 +51,10 @@ func (s *ProjectService) GetByID(id string) (*model.Project, error) {
 	var commands sql.NullString
 	var createdAt string
 
+	var workspaceID sql.NullString
 	err := s.db.QueryRow(
-		`SELECT id, name, repo_path, mode, commands, position, created_at FROM projects WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.RepoPath, &p.Mode, &commands, &p.Position, &createdAt)
+		`SELECT id, workspace_id, name, repo_path, mode, commands, position, created_at FROM projects WHERE id = ?`, id,
+	).Scan(&p.ID, &workspaceID, &p.Name, &p.RepoPath, &p.Mode, &commands, &p.Position, &createdAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("project.GetByID: project %s not found", id)
 	}
@@ -61,6 +62,7 @@ func (s *ProjectService) GetByID(id string) (*model.Project, error) {
 		return nil, fmt.Errorf("project.GetByID: query failed: %w", err)
 	}
 
+	p.WorkspaceID = workspaceID.String
 	p.Commands = unmarshalCommands(commands)
 	p.CreatedAt, _ = time.Parse("2006-01-02T15:04:05.000", createdAt)
 
@@ -68,7 +70,7 @@ func (s *ProjectService) GetByID(id string) (*model.Project, error) {
 }
 
 // Create validates the repo path, inserts a new project, and returns it.
-func (s *ProjectService) Create(name, repoPath string, mode model.ProjectMode) (*model.Project, error) {
+func (s *ProjectService) Create(name, repoPath string, mode model.ProjectMode, workspaceID string) (*model.Project, error) {
 	if name == "" {
 		return nil, fmt.Errorf("project.Create: name is required")
 	}
@@ -93,8 +95,8 @@ func (s *ProjectService) Create(name, repoPath string, mode model.ProjectMode) (
 
 	id := uuid.New().String()
 	_, err = s.db.Exec(
-		`INSERT INTO projects (id, name, repo_path, mode) VALUES (?, ?, ?, ?)`,
-		id, name, repoPath, string(mode),
+		`INSERT INTO projects (id, workspace_id, name, repo_path, mode) VALUES (?, ?, ?, ?, ?)`,
+		id, nullString(workspaceID), name, repoPath, string(mode),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("project.Create: insert failed (repo_path may already exist): %w", err)
@@ -104,7 +106,7 @@ func (s *ProjectService) Create(name, repoPath string, mode model.ProjectMode) (
 }
 
 // Update modifies a project's settings.
-func (s *ProjectService) Update(id, name string, mode model.ProjectMode, commands []model.ProjectCommand) (*model.Project, error) {
+func (s *ProjectService) Update(id, name string, mode model.ProjectMode, commands []model.ProjectCommand, workspaceID string) (*model.Project, error) {
 	if name == "" {
 		return nil, fmt.Errorf("project.Update: name is required")
 	}
@@ -112,8 +114,8 @@ func (s *ProjectService) Update(id, name string, mode model.ProjectMode, command
 	commandsJSON := marshalCommands(commands)
 
 	result, err := s.db.Exec(
-		`UPDATE projects SET name = ?, mode = ?, commands = ? WHERE id = ?`,
-		name, string(mode), commandsJSON, id,
+		`UPDATE projects SET name = ?, mode = ?, commands = ?, workspace_id = ? WHERE id = ?`,
+		name, string(mode), commandsJSON, nullString(workspaceID), id,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("project.Update: update failed: %w", err)
@@ -167,13 +169,14 @@ func (s *ProjectService) Reorder(ids []string) error {
 
 func scanProject(rows *sql.Rows) (*model.Project, error) {
 	var p model.Project
-	var commands sql.NullString
+	var workspaceID, commands sql.NullString
 	var createdAt string
 
-	if err := rows.Scan(&p.ID, &p.Name, &p.RepoPath, &p.Mode, &commands, &p.Position, &createdAt); err != nil {
+	if err := rows.Scan(&p.ID, &workspaceID, &p.Name, &p.RepoPath, &p.Mode, &commands, &p.Position, &createdAt); err != nil {
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
+	p.WorkspaceID = workspaceID.String
 	p.Commands = unmarshalCommands(commands)
 	p.CreatedAt, _ = time.Parse("2006-01-02T15:04:05.000", createdAt)
 

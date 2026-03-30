@@ -25,6 +25,7 @@ func New(db *sql.DB, port string) http.Handler {
 	providers := service.NewProviderRegistry()
 
 	// Services
+	workspaceSvc := service.NewWorkspaceService(db)
 	agentSvc := service.NewAgentService(db)
 	projectSvc := service.NewProjectService(db)
 	sessionSvc := service.NewSessionService(db)
@@ -36,6 +37,7 @@ func New(db *sql.DB, port string) http.Handler {
 	eventBus := service.NewEventBus()
 
 	// Handlers
+	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc)
 	agentHandler := handler.NewAgentHandler(agentSvc)
 	projectHandler := handler.NewProjectHandler(projectSvc, gitSvc)
 	sessionHandler := handler.NewSessionHandler(sessionSvc, projectSvc, gitSvc, providers)
@@ -50,6 +52,7 @@ func New(db *sql.DB, port string) http.Handler {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	r.Route("/api/workspaces", workspaceHandler.Routes)
 	r.Route("/api/agents", agentHandler.Routes)
 	r.Route("/api/projects", projectHandler.Routes)
 	r.Route("/api/sessions", func(sr chi.Router) {

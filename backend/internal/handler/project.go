@@ -40,9 +40,10 @@ func (h *ProjectHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 type createProjectRequest struct {
-	Name     string `json:"name"`
-	RepoPath string `json:"repo_path"`
-	Mode     string `json:"mode"`
+	Name        string `json:"name"`
+	RepoPath    string `json:"repo_path"`
+	Mode        string `json:"mode"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 func (h *ProjectHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +53,7 @@ func (h *ProjectHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.svc.Create(req.Name, req.RepoPath, model.ProjectMode(req.Mode))
+	project, err := h.svc.Create(req.Name, req.RepoPath, model.ProjectMode(req.Mode), req.WorkspaceID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -62,9 +63,10 @@ func (h *ProjectHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProjectRequest struct {
-	Name     string                  `json:"name"`
-	Mode     string                  `json:"mode"`
-	Commands []model.ProjectCommand  `json:"commands"`
+	Name        string                 `json:"name"`
+	Mode        string                 `json:"mode"`
+	Commands    []model.ProjectCommand `json:"commands"`
+	WorkspaceID string                 `json:"workspace_id"`
 }
 
 func (h *ProjectHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +78,7 @@ func (h *ProjectHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.svc.Update(id, req.Name, model.ProjectMode(req.Mode), req.Commands)
+	project, err := h.svc.Update(id, req.Name, model.ProjectMode(req.Mode), req.Commands, req.WorkspaceID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
