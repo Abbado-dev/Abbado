@@ -6,12 +6,28 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
   SettingsIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
+  GripVerticalIcon,
   LayersIcon,
   PencilIcon,
   Trash2Icon,
 } from "lucide-react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import {
   Collapsible,
@@ -44,11 +60,55 @@ import { useProjects } from "@/hooks/use-projects"
 import { useSessions } from "@/hooks/use-sessions"
 import { useWorkspaces, useCreateWorkspace, useUpdateWorkspace, useDeleteWorkspace } from "@/hooks/use-workspaces"
 import { useQueryClient } from "@tanstack/react-query"
-import { projectsApi, sessionsApi } from "@/lib/api"
-import type { Project } from "@/lib/api"
+import { projectsApi, sessionsApi, workspacesApi } from "@/lib/api"
+import type { Project, Session } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMoveUp?: () => void; onMoveDown?: () => void }) {
+// --- Drag handle ---
+
+function DragHandle({ listeners, attributes }: { listeners?: Record<string, Function>; attributes?: Record<string, unknown> }) {
+  return (
+    <button
+      type="button"
+      className="shrink-0 cursor-grab active:cursor-grabbing p-0.5 opacity-0 group-hover:opacity-100 transition-opacity touch-none"
+      {...listeners}
+      {...attributes}
+    >
+      <GripVerticalIcon className="size-3 text-muted-foreground" />
+    </button>
+  )
+}
+
+// --- Sortable session ---
+
+function SortableSession({ session, isActive }: { session: Session; isActive: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: session.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <SidebarMenuSubItem ref={setNodeRef} style={style}>
+      <div className="group flex items-center">
+        <DragHandle listeners={listeners} attributes={attributes} />
+        <SidebarMenuSubButton
+          render={<Link to={`/sessions/${session.id}`} />}
+          isActive={isActive}
+        >
+          <SessionStatusDot status={session.status} />
+          <span className="truncate">{session.name || session.branch_name}</span>
+        </SidebarMenuSubButton>
+      </div>
+    </SidebarMenuSubItem>
+  )
+}
+
+// --- Project item ---
+
+function ProjectItem({ project }: { project: Project }) {
   const { id: projectId, name: projectName } = project
   const location = useLocation()
   const navigate = useNavigate()
@@ -58,13 +118,18 @@ function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMo
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false)
   const [isOpen, setIsOpen] = useState(true)
 
-  function moveSession(index: number, direction: -1 | 1) {
-    if (!sessions) return
-    const newIndex = index + direction
-    if (newIndex < 0 || newIndex >= sessions.length) return
-    const reordered = [...sessions]
-    const [moved] = reordered.splice(index, 1)
-    reordered.splice(newIndex, 0, moved)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleSessionDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id || !sessions) return
+    const oldIdx = sessions.findIndex((s) => s.id === active.id)
+    const newIdx = sessions.findIndex((s) => s.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(sessions, oldIdx, newIdx)
     sessionsApi.reorder(reordered.map((s) => s.id)).then(() => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] })
     })
@@ -75,25 +140,11 @@ function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMo
 
   return (
     <>
-      <Collapsible defaultOpen onOpenChange={(open) => setIsOpen(open)}>
+      <Collapsible defaultOpen onOpenChange={setIsOpen}>
         <SidebarMenuItem>
           <div className="group/project flex items-center">
-            <div className="flex flex-col opacity-0 group-hover/project:opacity-100 transition-opacity shrink-0">
-              {onMoveUp && (
-                <button type="button" onClick={onMoveUp} className="p-0.5 hover:bg-sidebar-accent rounded" title="Move up">
-                  <ArrowUpIcon className="size-2.5 text-muted-foreground" />
-                </button>
-              )}
-              {onMoveDown && (
-                <button type="button" onClick={onMoveDown} className="p-0.5 hover:bg-sidebar-accent rounded" title="Move down">
-                  <ArrowDownIcon className="size-2.5 text-muted-foreground" />
-                </button>
-              )}
-            </div>
             <CollapsibleTrigger
-              className={cn(
-                "flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
-              )}
+              className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
             >
               <ChevronIcon className="size-4 shrink-0" />
               <FolderGit2Icon className="size-4 shrink-0" />
@@ -124,33 +175,17 @@ function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMo
 
           <CollapsibleContent>
             <SidebarMenuSub>
-              {sessions?.map((session, idx) => (
-                  <SidebarMenuSubItem key={session.id}>
-                    <div className="group/session flex items-center">
-                      <div className="flex flex-col opacity-0 group-hover/session:opacity-100 transition-opacity shrink-0">
-                        {idx > 0 && (
-                          <button type="button" onClick={() => moveSession(idx, -1)} className="p-0.5 hover:bg-sidebar-accent rounded">
-                            <ArrowUpIcon className="size-2 text-muted-foreground" />
-                          </button>
-                        )}
-                        {sessions && idx < sessions.length - 1 && (
-                          <button type="button" onClick={() => moveSession(idx, 1)} className="p-0.5 hover:bg-sidebar-accent rounded">
-                            <ArrowDownIcon className="size-2 text-muted-foreground" />
-                          </button>
-                        )}
-                      </div>
-                      <SidebarMenuSubButton
-                        render={<Link to={`/sessions/${session.id}`} />}
-                        isActive={location.pathname === `/sessions/${session.id}`}
-                      >
-                        <SessionStatusDot status={session.status} />
-                        <span className="truncate">
-                          {session.name || session.branch_name}
-                        </span>
-                      </SidebarMenuSubButton>
-                    </div>
-                  </SidebarMenuSubItem>
-              ))}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSessionDragEnd}>
+                <SortableContext items={sessions?.map((s) => s.id) ?? []} strategy={verticalListSortingStrategy}>
+                  {sessions?.map((session) => (
+                    <SortableSession
+                      key={session.id}
+                      session={session}
+                      isActive={location.pathname === `/sessions/${session.id}`}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               {(!sessions || sessions.length === 0) && (
                 <SidebarMenuSubItem>
                   <span className="px-2 py-1 text-xs text-muted-foreground">No sessions</span>
@@ -165,9 +200,7 @@ function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMo
         <SheetContent className="overflow-y-auto sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>New Session</SheetTitle>
-            <SheetDescription>
-              Create a session for {projectName}.
-            </SheetDescription>
+            <SheetDescription>Create a session for {projectName}.</SheetDescription>
           </SheetHeader>
           <div className="pb-6">
             <CreateSessionForm
@@ -185,15 +218,10 @@ function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMo
         <SheetContent className="overflow-y-auto sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>Project Settings</SheetTitle>
-            <SheetDescription>
-              Configure commands and settings for {projectName}.
-            </SheetDescription>
+            <SheetDescription>Configure commands and settings for {projectName}.</SheetDescription>
           </SheetHeader>
           <div className="pb-6">
-            <ProjectSettingsForm
-              project={project}
-              onSuccess={() => setSettingsSheetOpen(false)}
-            />
+            <ProjectSettingsForm project={project} onSuccess={() => setSettingsSheetOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -201,7 +229,30 @@ function ProjectItem({ project, onMoveUp, onMoveDown }: { project: Project; onMo
   )
 }
 
-function WorkspaceGroup({ workspaceId, name, projects }: { workspaceId: string; name: string; projects: Project[] }) {
+// --- Sortable project ---
+
+function SortableProject({ project }: { project: Project }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: project.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className="group flex items-center">
+      <DragHandle listeners={listeners} attributes={attributes} />
+      <div className="flex-1 min-w-0">
+        <ProjectItem project={project} />
+      </div>
+    </div>
+  )
+}
+
+// --- Sortable workspace ---
+
+function SortableWorkspaceGroup({ workspaceId, name, projects }: { workspaceId: string; name: string; projects: Project[] }) {
   const queryClient = useQueryClient()
   const updateWorkspace = useUpdateWorkspace()
   const deleteWorkspace = useDeleteWorkspace()
@@ -209,16 +260,27 @@ function WorkspaceGroup({ workspaceId, name, projects }: { workspaceId: string; 
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(name)
 
-  function moveProject(index: number, direction: -1 | 1) {
-    const newIndex = index + direction
-    if (newIndex < 0 || newIndex >= projects.length) return
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: workspaceId })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleProjectDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
     const allProjects = queryClient.getQueryData<Project[]>(["projects"]) ?? []
-    const reordered = [...allProjects]
-    const globalIdx = reordered.findIndex((p) => p.id === projects[index].id)
-    const globalNewIdx = reordered.findIndex((p) => p.id === projects[newIndex].id)
-    if (globalIdx < 0 || globalNewIdx < 0) return
-    const [moved] = reordered.splice(globalIdx, 1)
-    reordered.splice(globalNewIdx, 0, moved)
+    const oldIdx = allProjects.findIndex((p) => p.id === active.id)
+    const newIdx = allProjects.findIndex((p) => p.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(allProjects, oldIdx, newIdx)
     projectsApi.reorder(reordered.map((p) => p.id)).then(() => {
       queryClient.invalidateQueries({ queryKey: ["projects"] })
     })
@@ -227,51 +289,55 @@ function WorkspaceGroup({ workspaceId, name, projects }: { workspaceId: string; 
   const ChevronIcon = isOpen ? ChevronDownIcon : ChevronRightIcon
 
   return (
-    <Collapsible defaultOpen onOpenChange={setIsOpen}>
-      <SidebarMenuItem>
-        <div className="group/workspace flex items-center">
-          <CollapsibleTrigger className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent transition-colors">
-            <ChevronIcon className="size-3 shrink-0" />
-            <LayersIcon className="size-3 shrink-0" />
-            {editing ? (
-              <Input
-                autoFocus
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={() => { updateWorkspace.mutate({ id: workspaceId, name: editName }); setEditing(false) }}
-                onKeyDown={(e) => { if (e.key === "Enter") { updateWorkspace.mutate({ id: workspaceId, name: editName }); setEditing(false) } if (e.key === "Escape") setEditing(false) }}
-                onClick={(e) => e.stopPropagation()}
-                className="h-5 text-xs px-1 py-0 w-24"
-              />
-            ) : (
-              <span className="truncate flex-1 text-left">{name}</span>
-            )}
-          </CollapsibleTrigger>
-          <div className="flex opacity-0 group-hover/workspace:opacity-100 transition-opacity">
-            <button type="button" onClick={() => { setEditName(name); setEditing(true) }} className="size-5 flex items-center justify-center rounded hover:bg-sidebar-accent" title="Rename">
-              <PencilIcon className="size-2.5" />
-            </button>
-            <button type="button" onClick={() => deleteWorkspace.mutate(workspaceId)} className="size-5 flex items-center justify-center rounded hover:bg-sidebar-accent text-destructive" title="Delete workspace">
-              <Trash2Icon className="size-2.5" />
-            </button>
+    <div ref={setNodeRef} style={style}>
+      <Collapsible defaultOpen onOpenChange={setIsOpen}>
+        <SidebarMenuItem>
+          <div className="group/workspace flex items-center">
+            <DragHandle listeners={listeners} attributes={attributes} />
+            <CollapsibleTrigger className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent transition-colors">
+              <ChevronIcon className="size-3 shrink-0" />
+              <LayersIcon className="size-3 shrink-0" />
+              {editing ? (
+                <Input
+                  autoFocus
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={() => { updateWorkspace.mutate({ id: workspaceId, name: editName }); setEditing(false) }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { updateWorkspace.mutate({ id: workspaceId, name: editName }); setEditing(false) } if (e.key === "Escape") setEditing(false) }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-5 text-xs px-1 py-0 w-24"
+                />
+              ) : (
+                <span className="truncate flex-1 text-left">{name}</span>
+              )}
+            </CollapsibleTrigger>
+            <div className="flex opacity-0 group-hover/workspace:opacity-100 transition-opacity">
+              <button type="button" onClick={() => { setEditName(name); setEditing(true) }} className="size-5 flex items-center justify-center rounded hover:bg-sidebar-accent" title="Rename">
+                <PencilIcon className="size-2.5" />
+              </button>
+              <button type="button" onClick={() => deleteWorkspace.mutate(workspaceId)} className="size-5 flex items-center justify-center rounded hover:bg-sidebar-accent text-destructive" title="Delete workspace">
+                <Trash2Icon className="size-2.5" />
+              </button>
+            </div>
           </div>
-        </div>
-        <CollapsibleContent>
-          <SidebarMenuSub>
-            {projects.map((project, index) => (
-              <ProjectItem
-                key={project.id}
-                project={project}
-                onMoveUp={index > 0 ? () => moveProject(index, -1) : undefined}
-                onMoveDown={index < projects.length - 1 ? () => moveProject(index, 1) : undefined}
-              />
-            ))}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-      </SidebarMenuItem>
-    </Collapsible>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProjectDragEnd}>
+                <SortableContext items={projects.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                  {projects.map((project) => (
+                    <SortableProject key={project.id} project={project} />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </div>
   )
 }
+
+// --- Main list ---
 
 export function ProjectList() {
   const { data: projects } = useProjects()
@@ -280,23 +346,39 @@ export function ProjectList() {
   const queryClient = useQueryClient()
   const [projectSheetOpen, setProjectSheetOpen] = useState(false)
 
-  // Group projects by workspace.
   const ungrouped = projects?.filter((p) => !p.workspace_id) ?? []
   const grouped = workspaces?.map((ws) => ({
     ...ws,
     projects: projects?.filter((p) => p.workspace_id === ws.id) ?? [],
   })) ?? []
 
-  function moveProject(index: number, direction: -1 | 1) {
-    const newIndex = index + direction
-    if (newIndex < 0 || newIndex >= ungrouped.length) return
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  // Workspace reorder
+  function handleWorkspaceDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id || !workspaces) return
+    const oldIdx = workspaces.findIndex((ws) => ws.id === active.id)
+    const newIdx = workspaces.findIndex((ws) => ws.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(workspaces, oldIdx, newIdx)
+    workspacesApi.reorder(reordered.map((ws) => ws.id)).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] })
+    })
+  }
+
+  // Ungrouped project reorder
+  function handleUngroupedDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
     const allProjects = projects ?? []
-    const reordered = [...allProjects]
-    const globalIdx = reordered.findIndex((p) => p.id === ungrouped[index].id)
-    const globalNewIdx = reordered.findIndex((p) => p.id === ungrouped[newIndex].id)
-    if (globalIdx < 0 || globalNewIdx < 0) return
-    const [moved] = reordered.splice(globalIdx, 1)
-    reordered.splice(globalNewIdx, 0, moved)
+    const oldIdx = allProjects.findIndex((p) => p.id === active.id)
+    const newIdx = allProjects.findIndex((p) => p.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(allProjects, oldIdx, newIdx)
     projectsApi.reorder(reordered.map((p) => p.id)).then(() => {
       queryClient.invalidateQueries({ queryKey: ["projects"] })
     })
@@ -311,20 +393,23 @@ export function ProjectList() {
         </SidebarGroupAction>
       </SidebarGroupLabel>
       <SidebarMenu>
-        {/* Workspace groups */}
-        {grouped.map((ws) => (
-          <WorkspaceGroup key={ws.id} workspaceId={ws.id} name={ws.name} projects={ws.projects} />
-        ))}
+        {/* Workspace groups — sortable */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWorkspaceDragEnd}>
+          <SortableContext items={grouped.map((ws) => ws.id)} strategy={verticalListSortingStrategy}>
+            {grouped.map((ws) => (
+              <SortableWorkspaceGroup key={ws.id} workspaceId={ws.id} name={ws.name} projects={ws.projects} />
+            ))}
+          </SortableContext>
+        </DndContext>
 
-        {/* Ungrouped projects */}
-        {ungrouped.map((project, index) => (
-          <ProjectItem
-            key={project.id}
-            project={project}
-            onMoveUp={index > 0 ? () => moveProject(index, -1) : undefined}
-            onMoveDown={index < ungrouped.length - 1 ? () => moveProject(index, 1) : undefined}
-          />
-        ))}
+        {/* Ungrouped projects — sortable */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUngroupedDragEnd}>
+          <SortableContext items={ungrouped.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            {ungrouped.map((project) => (
+              <SortableProject key={project.id} project={project} />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         {/* New workspace button */}
         <SidebarMenuItem>
@@ -343,9 +428,7 @@ export function ProjectList() {
         <SheetContent className="overflow-y-auto sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>Add Project</SheetTitle>
-            <SheetDescription>
-              Point to an existing git repository on your machine.
-            </SheetDescription>
+            <SheetDescription>Point to an existing git repository on your machine.</SheetDescription>
           </SheetHeader>
           <div className="pb-6">
             <CreateProjectForm onSuccess={() => setProjectSheetOpen(false)} />
