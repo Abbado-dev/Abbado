@@ -36,7 +36,7 @@ func TestProjectCRUD(t *testing.T) {
 	repoPath := createTestRepo(t)
 
 	// Create
-	project, err := svc.Create("Test Project", repoPath, "")
+	project, err := svc.Create("Test Project", repoPath, "", "")
 	if err != nil {
 		t.Fatalf("Create() failed: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestProjectCRUD(t *testing.T) {
 	}
 
 	// Duplicate repo path should fail.
-	_, err = svc.Create("Duplicate", repoPath, "")
+	_, err = svc.Create("Duplicate", repoPath, "", "")
 	if err == nil {
 		t.Error("Create() with duplicate repo_path should fail")
 	}
@@ -86,20 +86,20 @@ func TestProjectCreateValidation(t *testing.T) {
 	svc := NewProjectService(tdb.DB)
 
 	// Empty name
-	_, err := svc.Create("", "/tmp", "")
+	_, err := svc.Create("", "/tmp", "", "")
 	if err == nil {
 		t.Error("Create() with empty name should fail")
 	}
 
 	// Non-existent path
-	_, err = svc.Create("Test", "/nonexistent/path/xyz", "")
+	_, err = svc.Create("Test", "/nonexistent/path/xyz", "", "")
 	if err == nil {
 		t.Error("Create() with nonexistent path should fail")
 	}
 
 	// Path without .git
 	dir := t.TempDir()
-	_, err = svc.Create("Test", dir, "")
+	_, err = svc.Create("Test", dir, "", "")
 	if err == nil {
 		t.Error("Create() with non-git directory should fail")
 	}

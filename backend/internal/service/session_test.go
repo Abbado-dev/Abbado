@@ -17,7 +17,7 @@ func TestSessionCRUD(t *testing.T) {
 	}
 
 	repoPath := createTestRepo(t)
-	project, err := projectSvc.Create("Test Project", repoPath, "")
+	project, err := projectSvc.Create("Test Project", repoPath, "", "")
 	if err != nil {
 		t.Fatalf("Create project failed: %v", err)
 	}
