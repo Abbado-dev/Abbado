@@ -222,7 +222,7 @@ export function CreateSessionForm({ projectId, onSuccess }: CreateSessionFormPro
       <Button
         type="submit"
         className="w-full"
-        disabled={createSession.isPending || !agentId || !branchName.trim()}
+        disabled={createSession.isPending || !agentId || (!isDirect && !branchName.trim())}
       >
         Create Session
       </Button>
