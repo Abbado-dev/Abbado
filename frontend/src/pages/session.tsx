@@ -61,10 +61,11 @@ export function SessionPage() {
   const project = session ? projects?.find((p) => p.id === session.project_id) : null
   const agent = session ? agents?.find((a) => a.id === session.agent_id) : null
   const provider = agent ? providers.find((p) => p.id === agent.cli_name) : null
+  const isDirect = project?.mode === "direct"
   const { data: changedFiles } = useQuery({
     queryKey: ['changes', id],
     queryFn: () => changesApi.files(id!),
-    enabled: !!id,
+    enabled: !!id && !isDirect,
   })
 
   // Focus terminal when switching tabs.
@@ -127,9 +128,12 @@ export function SessionPage() {
 
       {/* Tab bar */}
       {(() => {
-        const tabs = session.reviewer_agent_id
-          ? [baseTabs[0], baseTabs[1], baseTabs[2], reviewerTab, baseTabs[3], baseTabs[4], baseTabs[5]]
+        const filteredBase = isDirect
+          ? baseTabs.filter((t) => t.id !== "changes" && t.id !== "history")
           : [...baseTabs]
+        const tabs = session.reviewer_agent_id
+          ? [...filteredBase.slice(0, 3), reviewerTab, ...filteredBase.slice(3)]
+          : filteredBase
         return (
           <div className="flex shrink-0 gap-1 bg-muted/50 p-1 rounded-lg">
             {tabs.map((tab) => (
