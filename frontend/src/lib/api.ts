@@ -65,6 +65,7 @@ export type Session = {
   worktree_path?: string
   commands?: ProjectCommand[]
   status: SessionStatus
+  reviewer_status?: SessionStatus
   pid?: number
   tokens_in: number
   tokens_out: number
@@ -122,6 +123,10 @@ export const sessionsApi = {
     request<Session[]>(projectId ? `/sessions?project_id=${projectId}` : '/sessions'),
   create: (data: { project_id: string; agent_id: string; reviewer_agent_id?: string; name?: string; branch_name: string; base_branch?: string }) =>
     request<Session>('/sessions', { method: 'POST', body: JSON.stringify(data) }),
+  updateAgent: (id: string, agentId: string) =>
+    request<Session>(`/sessions/${id}/agent`, {
+      method: 'PUT', body: JSON.stringify({ agent_id: agentId }),
+    }),
   updateReviewer: (id: string, reviewerAgentId: string | null) =>
     request<Session>(`/sessions/${id}/reviewer`, {
       method: 'PUT', body: JSON.stringify({ reviewer_agent_id: reviewerAgentId ?? "" }),

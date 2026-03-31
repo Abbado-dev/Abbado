@@ -36,14 +36,26 @@ func TestCodexProviderSetupHooks(t *testing.T) {
 		t.Fatalf("SetupHooks() failed: %v", err)
 	}
 
-	if artifacts.CodexHome == "" {
-		t.Fatal("CodexHome should not be empty")
+	codexHome := artifacts.Env["CODEX_HOME"]
+	if codexHome == "" {
+		t.Fatal("Env[CODEX_HOME] should not be empty")
 	}
-	if artifacts.ModelInstructionsFile == "" {
-		t.Fatal("ModelInstructionsFile should not be empty")
+	if len(artifacts.Args) == 0 {
+		t.Fatal("Args should contain instructions flag")
 	}
 
-	instructions, err := os.ReadFile(artifacts.ModelInstructionsFile)
+	// Find instructions file from args (-c model_instructions_file="...")
+	var instructionsPath string
+	for _, arg := range artifacts.Args {
+		if strings.HasPrefix(arg, "model_instructions_file=") {
+			instructionsPath = strings.Trim(strings.TrimPrefix(arg, "model_instructions_file="), "\"")
+		}
+	}
+	if instructionsPath == "" {
+		t.Fatal("instructions path not found in Args")
+	}
+
+	instructions, err := os.ReadFile(instructionsPath)
 	if err != nil {
 		t.Fatalf("ReadFile(instructions) failed: %v", err)
 	}
@@ -52,12 +64,12 @@ func TestCodexProviderSetupHooks(t *testing.T) {
 	}
 
 	for _, name := range []string{"auth.json", "config.toml", "models_cache.json", "version.json"} {
-		if _, err := os.Stat(filepath.Join(artifacts.CodexHome, name)); err != nil {
+		if _, err := os.Stat(filepath.Join(codexHome, name)); err != nil {
 			t.Fatalf("expected seeded file %s: %v", name, err)
 		}
 	}
 
-	configToml, err := os.ReadFile(filepath.Join(artifacts.CodexHome, "config.toml"))
+	configToml, err := os.ReadFile(filepath.Join(codexHome, "config.toml"))
 	if err != nil {
 		t.Fatalf("ReadFile(config.toml) failed: %v", err)
 	}
@@ -65,7 +77,7 @@ func TestCodexProviderSetupHooks(t *testing.T) {
 		t.Errorf("config.toml missing trusted project entry: %s", string(configToml))
 	}
 
-	hooksData, err := os.ReadFile(filepath.Join(artifacts.CodexHome, "hooks.json"))
+	hooksData, err := os.ReadFile(filepath.Join(codexHome, "hooks.json"))
 	if err != nil {
 		t.Fatalf("ReadFile(hooks.json) failed: %v", err)
 	}
@@ -103,11 +115,12 @@ func TestClaudeProviderSetupHooks(t *testing.T) {
 		t.Fatalf("SetupHooks() failed: %v", err)
 	}
 
-	if artifacts.HooksSettingsPath == "" {
-		t.Fatal("HooksSettingsPath should not be empty")
+	if len(artifacts.Args) < 2 || artifacts.Args[0] != "--settings" {
+		t.Fatalf("Args should contain --settings <path>, got: %v", artifacts.Args)
 	}
 
-	data, err := os.ReadFile(artifacts.HooksSettingsPath)
+	settingsPath := artifacts.Args[1]
+	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		t.Fatalf("ReadFile(settings) failed: %v", err)
 	}
@@ -123,7 +136,7 @@ func TestClaudeProviderSetupHooksDisabled(t *testing.T) {
 		t.Fatalf("SetupHooks() failed: %v", err)
 	}
 
-	if artifacts.HooksSettingsPath != "" {
-		t.Error("HooksSettingsPath should be empty when callbacks disabled")
+	if len(artifacts.Args) != 0 {
+		t.Error("Args should be empty when callbacks disabled")
 	}
 }

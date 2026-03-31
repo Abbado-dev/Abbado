@@ -10,7 +10,7 @@ import (
 	"github.com/raznak/abbado/internal/model"
 )
 
-const sessionColumns = `id, project_id, agent_id, reviewer_agent_id, name, branch_name, base_branch, worktree_path, commands, position, status, pid, tokens_in, tokens_out, cost_usd, notify, created_at, updated_at`
+const sessionColumns = `id, project_id, agent_id, reviewer_agent_id, name, branch_name, base_branch, worktree_path, commands, position, status, reviewer_status, pid, tokens_in, tokens_out, cost_usd, notify, created_at, updated_at`
 
 // SessionService handles session lifecycle operations.
 type SessionService struct {
@@ -120,6 +120,18 @@ func (s *SessionService) UpdateStatus(id string, status model.SessionStatus) err
 	return nil
 }
 
+// UpdateReviewerStatus updates the reviewer status.
+func (s *SessionService) UpdateReviewerStatus(id string, status model.SessionStatus) error {
+	_, err := s.db.Exec(
+		`UPDATE sessions SET reviewer_status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%f','now') WHERE id = ?`,
+		string(status), id,
+	)
+	if err != nil {
+		return fmt.Errorf("session.UpdateReviewerStatus: update failed: %w", err)
+	}
+	return nil
+}
+
 // UpdateWorktree sets the worktree path for a session.
 func (s *SessionService) UpdateWorktree(id, worktreePath string) error {
 	_, err := s.db.Exec(
@@ -130,6 +142,18 @@ func (s *SessionService) UpdateWorktree(id, worktreePath string) error {
 		return fmt.Errorf("session.UpdateWorktree: update failed: %w", err)
 	}
 
+	return nil
+}
+
+// UpdateAgent changes the main agent for a session.
+func (s *SessionService) UpdateAgent(id, agentID string) error {
+	_, err := s.db.Exec(
+		`UPDATE sessions SET agent_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%f','now') WHERE id = ?`,
+		agentID, id,
+	)
+	if err != nil {
+		return fmt.Errorf("session.UpdateAgent: update failed: %w", err)
+	}
 	return nil
 }
 
@@ -174,7 +198,7 @@ func scanSession(rows *sql.Rows) (*model.Session, error) {
 
 	err := rows.Scan(
 		&sess.ID, &sess.ProjectID, &sess.AgentID, &reviewerAgentID, &name, &sess.BranchName, &sess.BaseBranch,
-		&worktreePath, &commands, &sess.Position, &sess.Status, &pid, &sess.TokensIn, &sess.TokensOut, &sess.CostUSD,
+		&worktreePath, &commands, &sess.Position, &sess.Status, &sess.ReviewerStatus, &pid, &sess.TokensIn, &sess.TokensOut, &sess.CostUSD,
 		&notify, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -220,7 +244,7 @@ func scanSessionRow(row *sql.Row) (*model.Session, error) {
 
 	err := row.Scan(
 		&sess.ID, &sess.ProjectID, &sess.AgentID, &reviewerAgentID, &name, &sess.BranchName, &sess.BaseBranch,
-		&worktreePath, &commands, &sess.Position, &sess.Status, &pid, &sess.TokensIn, &sess.TokensOut, &sess.CostUSD,
+		&worktreePath, &commands, &sess.Position, &sess.Status, &sess.ReviewerStatus, &pid, &sess.TokensIn, &sess.TokensOut, &sess.CostUSD,
 		&notify, &createdAt, &updatedAt,
 	)
 	if err != nil {

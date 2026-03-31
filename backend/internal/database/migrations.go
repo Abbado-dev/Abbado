@@ -46,7 +46,8 @@ var schema = []string{
 		worktree_path TEXT,
 		commands      TEXT,
 		position      INTEGER NOT NULL DEFAULT 0,
-		status        TEXT NOT NULL DEFAULT 'idle',
+		status          TEXT NOT NULL DEFAULT 'idle',
+		reviewer_status TEXT NOT NULL DEFAULT 'idle',
 		pid           INTEGER,
 		tokens_in     INTEGER NOT NULL DEFAULT 0,
 		tokens_out    INTEGER NOT NULL DEFAULT 0,
@@ -75,6 +76,7 @@ var schema = []string{
 var alterStatements = []string{
 	`ALTER TABLE sessions ADD COLUMN commands TEXT`,
 	`ALTER TABLE projects ADD COLUMN workspace_id TEXT REFERENCES workspaces(id)`,
+	`ALTER TABLE sessions ADD COLUMN reviewer_status TEXT NOT NULL DEFAULT 'idle'`,
 }
 
 // Migrate runs all schema statements.

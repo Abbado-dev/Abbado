@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	DefaultProviderID = "claude-code"
+	DefaultAIModel    = "claude-haiku-4-5-20251001"
+)
+
 // AIService generates commit messages, PR descriptions, and reviews using providers.
 type AIService struct {
 	registry *ProviderRegistry
@@ -28,10 +33,10 @@ type CommitAndPR struct {
 // Uses the specified provider and model, falling back to claude-code/haiku.
 func (s *AIService) GenerateCommitAndPR(ctx context.Context, providerID, model, workDir, diff string) (*CommitAndPR, error) {
 	if providerID == "" {
-		providerID = "claude-code"
+		providerID = DefaultProviderID
 	}
 	if model == "" {
-		model = "claude-haiku-4-5-20251001"
+		model = DefaultAIModel
 	}
 
 	truncated := diff
@@ -81,10 +86,10 @@ Diff:
 // ReviewDiff reviews a diff and returns structured feedback.
 func (s *AIService) ReviewDiff(ctx context.Context, providerID, model, workDir, diff string) (string, error) {
 	if providerID == "" {
-		providerID = "claude-code"
+		providerID = DefaultProviderID
 	}
 	if model == "" {
-		model = "claude-haiku-4-5-20251001"
+		model = DefaultAIModel
 	}
 
 	truncated := diff

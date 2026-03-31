@@ -58,7 +58,7 @@ export function SessionStatus({ activity, compact }: SessionStatusProps) {
   return (
     <div className={cn("flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium", config.bgColor, config.color)}>
       <Icon className={cn("size-3.5", config.animate && activity.status === "active" && "animate-spin")} />
-      <span>{config.label}</span>
+      <span>{activity.label ?? config.label}</span>
       {activity.currentTool && activity.status === "active" && (
         <span className="text-[10px] opacity-70 font-mono">
           {activity.currentTool}

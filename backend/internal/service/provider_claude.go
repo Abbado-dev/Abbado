@@ -16,8 +16,8 @@ func (p *ClaudeCodeProvider) ID() string { return "claude-code" }
 
 func (p *ClaudeCodeProvider) BuildCommand(workDir string, cfg LaunchConfig) *exec.Cmd {
 	args := []string{"claude"}
-	if cfg.Artifacts != nil && cfg.Artifacts.HooksSettingsPath != "" {
-		args = append(args, "--settings", cfg.Artifacts.HooksSettingsPath)
+	if cfg.Artifacts != nil {
+		args = append(args, cfg.Artifacts.Args...)
 	}
 	if cfg.Model != "" {
 		args = append(args, "--model", cfg.Model)
@@ -43,7 +43,7 @@ func (p *ClaudeCodeProvider) SetupHooks(sessionID, slot, workDir, callbackURL, i
 	}
 
 	settingsPath := filepath.Join(dir, "settings.json")
-	hookURL := fmt.Sprintf("%s/api/sessions/%s/hook", callbackURL, sessionID)
+	hookURL := fmt.Sprintf("%s/api/sessions/%s/hook?slot=%s", callbackURL, sessionID, slot)
 
 	mkCmd := func(jqExpr string) string {
 		return fmt.Sprintf(`INPUT=$(cat); PAYLOAD=$(echo "$INPUT" | jq -c '%s'); curl -s -X POST %s -H "Content-Type: application/json" -d "$PAYLOAD"`, jqExpr, hookURL)
@@ -74,7 +74,7 @@ func (p *ClaudeCodeProvider) SetupHooks(sessionID, slot, workDir, callbackURL, i
 		return nil, fmt.Errorf("claude: failed to write settings: %w", err)
 	}
 
-	return &LaunchArtifacts{HooksSettingsPath: settingsPath}, nil
+	return &LaunchArtifacts{Args: []string{"--settings", settingsPath}}, nil
 }
 
 func (p *ClaudeCodeProvider) Cleanup(sessionID string) {

@@ -7,7 +7,7 @@ import "@xterm/xterm/css/xterm.css"
 interface TerminalViewProps {
   sessionId: string
   type: "shell" | "agent" | "reviewer" | "runner"
-  onInput?: () => void
+  onInput?: (data: string) => void
 }
 
 export interface TerminalViewHandle {
@@ -91,7 +91,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       const onData = term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(data)
-          onInput?.()
+          onInput?.(data)
         }
       })
 

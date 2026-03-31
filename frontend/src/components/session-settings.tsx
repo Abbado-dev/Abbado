@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { PlusIcon, XIcon, RotateCcw } from "lucide-react"
+import { PlusIcon, XIcon, RotateCcw, BotIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,8 +11,62 @@ import { IconPicker, getCommandIcon } from "@/components/icon-picker"
 import { useAgents } from "@/hooks/use-agents"
 import { useProjects } from "@/hooks/use-projects"
 import { useUpdateSessionCommands } from "@/hooks/use-sessions"
+import { sessionsApi } from "@/lib/api"
 import { providers } from "@/lib/providers"
-import type { Session, ProjectCommand } from "@/lib/api"
+import { useQueryClient } from "@tanstack/react-query"
+import type { Session, ProjectCommand, Agent } from "@/lib/api"
+import { cn } from "@/lib/utils"
+
+function AgentSelector({ agents, selectedId, onChange, allowNone }: {
+  agents?: Agent[]
+  selectedId?: string
+  onChange: (id: string) => void
+  allowNone?: boolean
+}) {
+  if (!agents || agents.length === 0) {
+    return <p className="text-xs text-muted-foreground">No agents configured.</p>
+  }
+
+  return (
+    <div className="grid gap-1.5">
+      {allowNone && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className={cn(
+            "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+            !selectedId ? "border-primary bg-accent/50" : "border-border hover:bg-accent/30"
+          )}
+        >
+          <span className="text-muted-foreground">None</span>
+        </button>
+      )}
+      {agents.map((a) => {
+        const p = providers.find((pr) => pr.id === a.cli_name)
+        return (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => onChange(a.id)}
+            className={cn(
+              "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+              selectedId === a.id ? "border-primary bg-accent/50" : "border-border hover:bg-accent/30"
+            )}
+          >
+            {p?.logo ? (
+              <img src={p.logo} alt={p.name} className="size-5 rounded object-contain" />
+            ) : (
+              <BotIcon className="size-4 text-muted-foreground" />
+            )}
+            <span className="font-medium">{a.name}</span>
+            <Badge variant="outline" className="text-[10px] ml-auto">{p?.name ?? a.cli_name}</Badge>
+            {a.model && <Badge variant="secondary" className="text-[10px]">{a.model}</Badge>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 interface SessionSettingsProps {
   session: Session
@@ -22,10 +76,21 @@ export function SessionSettings({ session }: SessionSettingsProps) {
   const { data: agents } = useAgents()
   const { data: projects } = useProjects()
   const updateCommands = useUpdateSessionCommands()
+  const queryClient = useQueryClient()
 
-  const agent = agents?.find((a) => a.id === session.agent_id)
-  const provider = agent ? providers.find((p) => p.id === agent.cli_name) : null
   const project = projects?.find((p) => p.id === session.project_id)
+
+  function changeAgent(agentId: string) {
+    sessionsApi.updateAgent(session.id, agentId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+    })
+  }
+
+  function changeReviewer(agentId: string | null) {
+    sessionsApi.updateReviewer(session.id, agentId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+    })
+  }
 
   const hasOverride = session.commands != null && session.commands.length > 0
   const effectiveCommands = hasOverride ? session.commands! : (project?.commands ?? [])
@@ -101,30 +166,17 @@ export function SessionSettings({ session }: SessionSettingsProps) {
         </CardContent>
       </Card>
 
-      {/* Agent info */}
-      {agent && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              {provider?.logo && (
-                <img src={provider.logo} alt={provider.name} className="size-6 rounded object-contain" />
-              )}
-              <div>
-                <CardTitle className="text-sm">{agent.name}</CardTitle>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Badge variant="outline" className="text-[10px]">{provider?.name ?? agent.cli_name}</Badge>
-                  {agent.model && <Badge variant="secondary" className="text-[10px]">{agent.model}</Badge>}
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          {agent.instructions && (
-            <CardContent>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{agent.instructions}</p>
-            </CardContent>
-          )}
-        </Card>
-      )}
+      {/* Agent */}
+      <div className="space-y-2">
+        <Label>Agent</Label>
+        <AgentSelector agents={agents} selectedId={session.agent_id} onChange={changeAgent} />
+      </div>
+
+      {/* Reviewer */}
+      <div className="space-y-2">
+        <Label>Reviewer (optional)</Label>
+        <AgentSelector agents={agents} selectedId={session.reviewer_agent_id} onChange={(id) => changeReviewer(id || null)} allowNone />
+      </div>
 
       <Separator />
 

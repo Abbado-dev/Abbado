@@ -51,6 +51,8 @@ func (h *HooksHandler) hook(w http.ResponseWriter, r *http.Request) {
 		log.Printf("hooks: failed to record event: %v", err)
 	}
 
+	slot := r.URL.Query().Get("slot")
+
 	// Update session status based on event type.
 	var newStatus model.SessionStatus
 	switch req.Event {
@@ -67,8 +69,14 @@ func (h *HooksHandler) hook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if newStatus != "" {
-		if err := h.sessionSvc.UpdateStatus(sessionID, newStatus); err != nil {
-			log.Printf("hooks: failed to update session status: %v", err)
+		if slot == "reviewer" {
+			if err := h.sessionSvc.UpdateReviewerStatus(sessionID, newStatus); err != nil {
+				log.Printf("hooks: failed to update reviewer status: %v", err)
+			}
+		} else {
+			if err := h.sessionSvc.UpdateStatus(sessionID, newStatus); err != nil {
+				log.Printf("hooks: failed to update session status: %v", err)
+			}
 		}
 	}
 
@@ -77,6 +85,7 @@ func (h *HooksHandler) hook(w http.ResponseWriter, r *http.Request) {
 		SessionID: sessionID,
 		Event:     req.Event,
 		Payload:   req.Payload,
+		Slot:      slot,
 		Timestamp: time.Now(),
 	}
 	h.eventBus.Publish(event)
