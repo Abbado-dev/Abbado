@@ -256,9 +256,17 @@ func (h *TerminalHandler) sendReviewPrompt(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }
 
-// buildInstructions combines project commands (or session overrides) with agent instructions.
+// buildInstructions combines session context, project commands, and agent instructions.
 func (h *TerminalHandler) buildInstructions(session *model.Session, agentInstructions string) string {
-	// Session commands override project commands.
+	var parts []string
+
+	// Session context — branch info so the agent knows how to diff.
+	parts = append(parts, "## Session Context")
+	parts = append(parts, fmt.Sprintf("- Branch: `%s`", session.BranchName))
+	parts = append(parts, fmt.Sprintf("- Base branch: `%s`", session.BaseBranch))
+	parts = append(parts, fmt.Sprintf("- To see changes: `git diff %s`", session.BaseBranch))
+
+	// Project commands.
 	commands := session.Commands
 	if len(commands) == 0 {
 		project, err := h.projectSvc.GetByID(session.ProjectID)
@@ -266,26 +274,23 @@ func (h *TerminalHandler) buildInstructions(session *model.Session, agentInstruc
 			commands = project.Commands
 		}
 	}
-	if len(commands) == 0 {
-		return agentInstructions
+	if len(commands) > 0 {
+		parts = append(parts, "\n## Project Commands")
+		for _, cmd := range commands {
+			parts = append(parts, fmt.Sprintf("- %s: `%s`", cmd.Label, cmd.Command))
+		}
+		parts = append(parts, "\nUse these commands when working with this project.")
 	}
 
-	var parts []string
-	parts = append(parts, "## Project Commands")
-	for _, cmd := range commands {
-		parts = append(parts, fmt.Sprintf("- %s: `%s`", cmd.Label, cmd.Command))
-	}
-	parts = append(parts, "\nUse these commands when working with this project.")
-
-	commandsPrompt := ""
+	contextPrompt := ""
 	for _, p := range parts {
-		commandsPrompt += p + "\n"
+		contextPrompt += p + "\n"
 	}
 
 	if agentInstructions != "" {
-		return commandsPrompt + "\n" + agentInstructions
+		return contextPrompt + "\n" + agentInstructions
 	}
-	return commandsPrompt
+	return contextPrompt
 }
 
 func (h *TerminalHandler) runner(w http.ResponseWriter, r *http.Request) {
@@ -471,8 +476,8 @@ func (h *TerminalHandler) getOrCreateReviewer(sessionID, workDir, cliName, model
 
 	provider := h.providers.Get(cliName)
 
-	// Reviewer PTYs: setup hooks but no callbacks (enableCallbacks=false).
-	artifacts, err := provider.SetupHooks(sessionID, "reviewer", workDir, h.callbackURL, instructions, false)
+	// Reviewer PTYs: enable hooks with slot=reviewer so status goes to reviewer_status.
+	artifacts, err := provider.SetupHooks(sessionID, "reviewer", workDir, h.callbackURL, instructions, true)
 	if err != nil {
 		log.Printf("terminal: failed to setup reviewer hooks for %s: %v", cliName, err)
 		artifacts = &service.LaunchArtifacts{}

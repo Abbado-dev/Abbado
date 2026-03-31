@@ -73,7 +73,8 @@ type Session struct {
 	WorktreePath string           `json:"worktree_path,omitempty"`
 	Commands     []ProjectCommand `json:"commands,omitempty"`
 	Position     int              `json:"position"`
-	Status       SessionStatus    `json:"status"`
+	Status         SessionStatus  `json:"status"`
+	ReviewerStatus SessionStatus  `json:"reviewer_status,omitempty"`
 	PID          int              `json:"pid,omitempty"`
 	TokensIn     int64            `json:"tokens_in"`
 	TokensOut    int64            `json:"tokens_out"`

@@ -12,11 +12,14 @@ import { SessionSettings } from "@/components/session-settings"
 import { PromptHistory } from "@/components/prompt-history"
 import { DeleteSessionDialog } from "@/components/delete-session-dialog"
 import { SessionStatus } from "@/components/session-status"
-import { useSessionEvents } from "@/hooks/use-session-events"
+import { SessionStatusDot } from "@/components/session-status-dot"
+import { useSessionEvents, type SessionActivity } from "@/hooks/use-session-events"
 import { useSessions } from "@/hooks/use-sessions"
 import { useProjects } from "@/hooks/use-projects"
 import { useAgents } from "@/hooks/use-agents"
 import { providers } from "@/lib/providers"
+import { changesApi } from "@/lib/api"
+import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 
 const baseTabs = [
@@ -32,6 +35,10 @@ const reviewerTab = { id: "reviewer" as const, label: "Review", icon: ScanEyeIco
 
 type TabId = (typeof baseTabs)[number]["id"] | "reviewer"
 
+function renderLiveStatusDot(status: SessionActivity["status"]) {
+  if (status !== "active" && status !== "waiting") return null
+  return <SessionStatusDot status={status} />
+}
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -46,10 +53,19 @@ export function SessionPage() {
   const runnerRef = useRef<RunTabHandle>(null)
 
   const session = sessions?.find((s) => s.id === id)
-  const { activity, markActive } = useSessionEvents(id, session?.status)
+  const { agentActivity, reviewerActivity, markAgentActive, markReviewerActive } = useSessionEvents(
+    id,
+    session?.status,
+    session?.reviewer_status,
+  )
   const project = session ? projects?.find((p) => p.id === session.project_id) : null
   const agent = session ? agents?.find((a) => a.id === session.agent_id) : null
   const provider = agent ? providers.find((p) => p.id === agent.cli_name) : null
+  const { data: changedFiles } = useQuery({
+    queryKey: ['changes', id],
+    queryFn: () => changesApi.files(id!),
+    enabled: !!id,
+  })
 
   // Focus terminal when switching tabs.
   useEffect(() => {
@@ -97,7 +113,10 @@ export function SessionPage() {
               ) : (
                 <span className="font-mono">{session.branch_name}</span>
               )}
-              <SessionStatus activity={activity} />
+              <SessionStatus activity={agentActivity} />
+              {session.reviewer_agent_id && (reviewerActivity.status === "active" || reviewerActivity.status === "waiting") && (
+                <SessionStatus activity={{ ...reviewerActivity, label: "Review" }} />
+              )}
             </div>
           </div>
         </div>
@@ -126,7 +145,14 @@ export function SessionPage() {
                 )}
               >
                 <tab.icon className="size-4" />
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.id === "agent" && renderLiveStatusDot(agentActivity.status)}
+                {tab.id === "reviewer" && renderLiveStatusDot(reviewerActivity.status)}
+                {tab.id === "changes" && changedFiles && changedFiles.length > 0 && (
+                  <span className="rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none">
+                    {changedFiles.length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -136,7 +162,7 @@ export function SessionPage() {
       {/* Tab panels — terminals use visibility (keep alive), others use display */}
       <div key={session.id} className="flex-1 min-h-0 pt-2 relative">
         <div className={cn("absolute inset-0 pt-2", activeTab === "agent" ? "visible" : "invisible")}>
-          <TerminalView ref={agentTermRef} sessionId={session.id} type="agent" onInput={markActive} />
+          <TerminalView ref={agentTermRef} sessionId={session.id} type="agent" onInput={markAgentActive} />
         </div>
         <div className={cn("absolute inset-0 pt-2", activeTab === "terminal" ? "visible" : "invisible")}>
           <TerminalView ref={shellTermRef} sessionId={session.id} type="shell" />
@@ -146,7 +172,7 @@ export function SessionPage() {
         </div>
         {session.reviewer_agent_id && (
           <div className={cn("absolute inset-0 pt-2", activeTab === "reviewer" ? "visible" : "invisible")}>
-            <ReviewerTab ref={reviewerTermRef} sessionId={session.id} />
+            <ReviewerTab ref={reviewerTermRef} sessionId={session.id} onInput={markReviewerActive} />
           </div>
         )}
         <div className={cn("absolute inset-0 pt-2", activeTab !== "changes" && "hidden")}>

@@ -11,6 +11,7 @@ type SessionEvent struct {
 	SessionID string    `json:"session_id"`
 	Event     string    `json:"event"`
 	Payload   string    `json:"payload,omitempty"`
+	Slot      string    `json:"slot,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
 }
 

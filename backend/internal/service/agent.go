@@ -81,7 +81,7 @@ func (s *AgentService) Create(name, cliName, agentModel, instructions string) (*
 		return nil, fmt.Errorf("agent.Create: name is required")
 	}
 	if cliName == "" {
-		cliName = "claude-code"
+		cliName = DefaultProviderID
 	}
 
 	id := uuid.New().String()

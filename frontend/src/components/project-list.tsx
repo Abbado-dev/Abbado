@@ -99,6 +99,9 @@ function SortableSession({ session, isActive }: { session: Session; isActive: bo
         >
           <SessionStatusDot status={session.status} />
           <span className="truncate">{session.name || session.branch_name}</span>
+          {session.reviewer_status && session.reviewer_status !== "idle" && (
+            <span className={`size-1.5 rounded-full shrink-0 ${session.reviewer_status === "waiting" ? "bg-amber-500" : "bg-purple-400"} animate-pulse`} title={`Reviewer: ${session.reviewer_status}`} />
+          )}
         </SidebarMenuSubButton>
       </div>
     </SidebarMenuSubItem>

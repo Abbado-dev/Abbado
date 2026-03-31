@@ -21,18 +21,18 @@ func (p *CodexProvider) BuildCommand(workDir string, cfg LaunchConfig) *exec.Cmd
 	if cfg.Model != "" {
 		args = append(args, "--model", cfg.Model)
 	}
-	if cfg.Artifacts != nil && cfg.Artifacts.ModelInstructionsFile != "" {
-		args = append(args, "-c", fmt.Sprintf("model_instructions_file=%q", cfg.Artifacts.ModelInstructionsFile))
+	if cfg.Artifacts != nil {
+		args = append(args, cfg.Artifacts.Args...)
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = workDir
 
-	extra := make(map[string]string)
-	if cfg.Artifacts != nil && cfg.Artifacts.CodexHome != "" {
-		extra["CODEX_HOME"] = cfg.Artifacts.CodexHome
+	var env map[string]string
+	if cfg.Artifacts != nil {
+		env = cfg.Artifacts.Env
 	}
-	cmd.Env = buildBaseEnv(extra)
+	cmd.Env = buildBaseEnv(env)
 	return cmd
 }
 
@@ -66,7 +66,7 @@ func (p *CodexProvider) SetupHooks(sessionID, slot, workDir, callbackURL, instru
 	}
 
 	if enableCallbacks {
-		hookURL := fmt.Sprintf("%s/api/sessions/%s/hook", callbackURL, sessionID)
+		hookURL := fmt.Sprintf("%s/api/sessions/%s/hook?slot=%s", callbackURL, sessionID, slot)
 		hookScriptPath := filepath.Join(slotDir, "codex-hook.sh")
 		if err := os.WriteFile(hookScriptPath, []byte(codexHookScriptContent), 0o755); err != nil {
 			return nil, fmt.Errorf("codex: failed to write hook script: %w", err)
@@ -89,10 +89,13 @@ func (p *CodexProvider) SetupHooks(sessionID, slot, workDir, callbackURL, instru
 		}
 	}
 
-	return &LaunchArtifacts{
-		CodexHome:             codexHome,
-		ModelInstructionsFile: instructionsPath,
-	}, nil
+	artifacts := &LaunchArtifacts{
+		Env: map[string]string{"CODEX_HOME": codexHome},
+	}
+	if instructionsPath != "" {
+		artifacts.Args = []string{"-c", fmt.Sprintf("model_instructions_file=%q", instructionsPath)}
+	}
+	return artifacts, nil
 }
 
 func (p *CodexProvider) Cleanup(sessionID string) {

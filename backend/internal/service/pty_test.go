@@ -12,7 +12,7 @@ func TestClaudeProviderBuildCommand(t *testing.T) {
 		Model:        "claude-sonnet-4-6",
 		Instructions: "Be precise",
 		Artifacts: &LaunchArtifacts{
-			HooksSettingsPath: "/tmp/claude-settings.json",
+			Args: []string{"--settings", "/tmp/claude-settings.json"},
 		},
 	})
 
@@ -45,8 +45,8 @@ func TestCodexProviderBuildCommand(t *testing.T) {
 	cmd := provider.BuildCommand("/tmp/workdir", LaunchConfig{
 		Model: "gpt-5.4",
 		Artifacts: &LaunchArtifacts{
-			CodexHome:             "/tmp/codex-home",
-			ModelInstructionsFile: "/tmp/instructions.md",
+			Args: []string{"-c", `model_instructions_file="/tmp/instructions.md"`},
+			Env:  map[string]string{"CODEX_HOME": "/tmp/codex-home"},
 		},
 	})
 

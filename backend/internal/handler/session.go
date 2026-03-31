@@ -30,6 +30,7 @@ func (h *SessionHandler) Routes(r chi.Router) {
 	r.Get("/", h.list)
 	r.Post("/", h.create)
 	r.Delete("/{id}", h.delete)
+	r.Put("/{id}/agent", h.updateAgent)
 	r.Put("/{id}/reviewer", h.updateReviewer)
 	r.Put("/{id}/commands", h.updateCommands)
 	r.Post("/reorder", h.reorder)
@@ -171,6 +172,35 @@ func (h *SessionHandler) delete(w http.ResponseWriter, r *http.Request) {
 	h.providers.CleanupSession(id)
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *SessionHandler) updateAgent(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req struct {
+		AgentID string `json:"agent_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON body: "+err.Error())
+		return
+	}
+	if req.AgentID == "" {
+		writeError(w, http.StatusBadRequest, "agent_id is required")
+		return
+	}
+
+	if err := h.svc.UpdateAgent(id, req.AgentID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	session, err := h.svc.GetByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, session)
 }
 
 type updateReviewerRequest struct {
