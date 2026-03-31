@@ -99,12 +99,12 @@ func (p *CodexProvider) Cleanup(sessionID string) {
 	os.RemoveAll(filepath.Join(DataDir(), "hooks", sessionID))
 }
 
-func (p *CodexProvider) OneShot(ctx context.Context, model, prompt string) (string, error) {
+func (p *CodexProvider) OneShot(ctx context.Context, workDir, model, prompt string) (string, error) {
 	args := []string{"codex", "-q"}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
-	return runOneShot(ctx, args, prompt)
+	return runOneShot(ctx, workDir, args, prompt)
 }
 
 func (p *CodexProvider) hookCmd(scriptPath, event, hookURL string) string {

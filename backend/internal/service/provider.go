@@ -27,7 +27,8 @@ type Provider interface {
 
 	// OneShot executes a single prompt and returns the text response.
 	// Used for async review and commit message generation.
-	OneShot(ctx context.Context, model, prompt string) (string, error)
+	// workDir sets the working directory for the CLI process.
+	OneShot(ctx context.Context, workDir, model, prompt string) (string, error)
 }
 
 // LaunchConfig contains the parameters for launching an agent.
@@ -78,8 +79,11 @@ func (r *ProviderRegistry) CleanupSession(sessionID string) {
 }
 
 // runOneShot is a helper that executes a CLI in one-shot mode via stdin/stdout.
-func runOneShot(ctx context.Context, args []string, prompt string) (string, error) {
+func runOneShot(ctx context.Context, workDir string, args []string, prompt string) (string, error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
