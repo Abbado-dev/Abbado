@@ -32,6 +32,6 @@ func (p *GenericProvider) SetupHooks(sessionID, slot, workDir, callbackURL, inst
 
 func (p *GenericProvider) Cleanup(sessionID string) {}
 
-func (p *GenericProvider) OneShot(ctx context.Context, model, prompt string) (string, error) {
+func (p *GenericProvider) OneShot(ctx context.Context, workDir, model, prompt string) (string, error) {
 	return "", fmt.Errorf("oneshot not supported for provider %s", p.CLIName)
 }

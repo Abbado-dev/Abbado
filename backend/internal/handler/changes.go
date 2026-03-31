@@ -284,7 +284,7 @@ func (h *ChangesHandler) generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.aiSvc.GenerateCommitAndPR(r.Context(), "", "", diff)
+	result, err := h.aiSvc.GenerateCommitAndPR(r.Context(), "", "", workDir, diff)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "AI generation failed: "+err.Error())
 		return
@@ -317,7 +317,7 @@ func (h *ChangesHandler) review(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	review, err := h.aiSvc.ReviewDiff(r.Context(), "", "", diff)
+	review, err := h.aiSvc.ReviewDiff(r.Context(), "", "", workDir, diff)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "AI review failed: "+err.Error())
 		return

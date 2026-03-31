@@ -59,7 +59,7 @@ export function SessionPage() {
       else if (activeTab === "terminal") shellTermRef.current?.focus()
       else if (activeTab === "reviewer") reviewerTermRef.current?.focus()
       else if (activeTab === "run") runnerRef.current?.focus()
-    }, 50)
+    }, 150)
     return () => clearTimeout(timer)
   }, [activeTab])
 
@@ -86,7 +86,17 @@ export function SessionPage() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {project && <span>{project.name}</span>}
               <span>/</span>
-              <span className="font-mono">{session.branch_name}</span>
+              {session.worktree_path ? (
+                <a
+                  href={`vscode://file/${session.worktree_path}`}
+                  className="font-mono hover:text-foreground transition-colors"
+                  title="Open in VS Code"
+                >
+                  {session.branch_name}
+                </a>
+              ) : (
+                <span className="font-mono">{session.branch_name}</span>
+              )}
               <SessionStatus activity={activity} />
             </div>
           </div>
@@ -124,7 +134,7 @@ export function SessionPage() {
       })()}
 
       {/* Tab panels — terminals use visibility (keep alive), others use display */}
-      <div className="flex-1 min-h-0 pt-2 relative">
+      <div key={session.id} className="flex-1 min-h-0 pt-2 relative">
         <div className={cn("absolute inset-0 pt-2", activeTab === "agent" ? "visible" : "invisible")}>
           <TerminalView ref={agentTermRef} sessionId={session.id} type="agent" onInput={markActive} />
         </div>

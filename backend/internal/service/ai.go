@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // AIService generates commit messages, PR descriptions, and reviews using providers.
@@ -25,7 +26,7 @@ type CommitAndPR struct {
 
 // GenerateCommitAndPR generates a commit message, PR title, and PR body from a diff.
 // Uses the specified provider and model, falling back to claude-code/haiku.
-func (s *AIService) GenerateCommitAndPR(ctx context.Context, providerID, model, diff string) (*CommitAndPR, error) {
+func (s *AIService) GenerateCommitAndPR(ctx context.Context, providerID, model, workDir, diff string) (*CommitAndPR, error) {
 	if providerID == "" {
 		providerID = "claude-code"
 	}
@@ -50,13 +51,27 @@ Diff:
 %s`, truncated)
 
 	provider := s.registry.Get(providerID)
-	out, err := provider.OneShot(ctx, model, prompt)
+	out, err := provider.OneShot(ctx, workDir, model, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("ai.GenerateCommitAndPR: %w", err)
 	}
 
+	// Strip markdown code fences if the model wraps the JSON.
+	cleaned := strings.TrimSpace(out)
+	if strings.HasPrefix(cleaned, "```") {
+		// Remove opening fence (```json or ```)
+		if idx := strings.Index(cleaned, "\n"); idx != -1 {
+			cleaned = cleaned[idx+1:]
+		}
+		// Remove closing fence
+		if idx := strings.LastIndex(cleaned, "```"); idx != -1 {
+			cleaned = cleaned[:idx]
+		}
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
 	var result CommitAndPR
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
+	if err := json.Unmarshal([]byte(cleaned), &result); err != nil {
 		return nil, fmt.Errorf("ai.GenerateCommitAndPR: failed to parse response: %w (raw: %s)", err, out)
 	}
 
@@ -64,7 +79,7 @@ Diff:
 }
 
 // ReviewDiff reviews a diff and returns structured feedback.
-func (s *AIService) ReviewDiff(ctx context.Context, providerID, model, diff string) (string, error) {
+func (s *AIService) ReviewDiff(ctx context.Context, providerID, model, workDir, diff string) (string, error) {
 	if providerID == "" {
 		providerID = "claude-code"
 	}
@@ -90,5 +105,5 @@ Diff:
 %s`, truncated)
 
 	provider := s.registry.Get(providerID)
-	return provider.OneShot(ctx, model, prompt)
+	return provider.OneShot(ctx, workDir, model, prompt)
 }
