@@ -23,8 +23,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     useImperativeHandle(ref, () => ({
       focus: () => {
         if (termRef.current) {
-          termRef.current.focus()
           fitRef.current?.fit()
+          requestAnimationFrame(() => {
+            termRef.current?.focus()
+          })
         }
       },
     }))
