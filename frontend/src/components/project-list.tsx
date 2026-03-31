@@ -107,7 +107,19 @@ function SortableSession({ session, isActive }: { session: Session; isActive: bo
 
 // --- Project item ---
 
-function ProjectItem({ project }: { project: Project }) {
+function ActivityBadge({ sessions }: { sessions?: Session[] }) {
+  const active = sessions?.filter((s) => s.status === "active" || s.status === "waiting") ?? []
+  if (active.length === 0) return null
+  const hasWaiting = active.some((s) => s.status === "waiting")
+  return (
+    <span className={`shrink-0 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${hasWaiting ? "bg-amber-500/15 text-amber-400" : "bg-green-500/15 text-green-400"}`}>
+      <span className={`size-1.5 rounded-full ${hasWaiting ? "bg-amber-500" : "bg-green-500"}`} />
+      {active.length}
+    </span>
+  )
+}
+
+function ProjectItem({ project, forceOpen }: { project: Project; forceOpen?: boolean }) {
   const { id: projectId, name: projectName } = project
   const location = useLocation()
   const navigate = useNavigate()
@@ -115,7 +127,7 @@ function ProjectItem({ project }: { project: Project }) {
   const { data: sessions } = useSessions(projectId)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false)
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(forceOpen ?? false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -134,12 +146,11 @@ function ProjectItem({ project }: { project: Project }) {
     })
   }
 
-  const sessionCount = sessions?.length ?? 0
   const ChevronIcon = isOpen ? ChevronDownIcon : ChevronRightIcon
 
   return (
     <>
-      <Collapsible defaultOpen onOpenChange={setIsOpen}>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <SidebarMenuItem>
           <div className="group/project flex items-center">
             <CollapsibleTrigger
@@ -148,11 +159,7 @@ function ProjectItem({ project }: { project: Project }) {
               <ChevronIcon className="size-4 shrink-0" />
               <FolderGit2Icon className="size-4 shrink-0" />
               <span className="truncate flex-1 text-left">{projectName}</span>
-              {sessionCount > 0 && !isOpen && (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  {sessionCount}
-                </span>
-              )}
+              {!isOpen && <ActivityBadge sessions={sessions} />}
             </CollapsibleTrigger>
             <button
               type="button"
@@ -230,7 +237,7 @@ function ProjectItem({ project }: { project: Project }) {
 
 // --- Sortable project ---
 
-function SortableProject({ project }: { project: Project }) {
+function SortableProject({ project, forceOpen }: { project: Project; forceOpen?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: project.id })
 
   const style = {
@@ -243,7 +250,7 @@ function SortableProject({ project }: { project: Project }) {
     <div ref={setNodeRef} style={style} className="group flex items-center">
       <DragHandle listeners={listeners} attributes={attributes} />
       <div className="flex-1 min-w-0">
-        <ProjectItem project={project} />
+        <ProjectItem project={project} forceOpen={forceOpen} />
       </div>
     </div>
   )
@@ -251,13 +258,17 @@ function SortableProject({ project }: { project: Project }) {
 
 // --- Sortable workspace ---
 
-function SortableWorkspaceGroup({ workspaceId, name, projects }: { workspaceId: string; name: string; projects: Project[] }) {
+function SortableWorkspaceGroup({ workspaceId, name, projects, forceOpen, allSessions }: { workspaceId: string; name: string; projects: Project[]; forceOpen?: boolean; allSessions?: Session[] }) {
   const queryClient = useQueryClient()
   const updateWorkspace = useUpdateWorkspace()
   const deleteWorkspace = useDeleteWorkspace()
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(forceOpen ?? false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(name)
+
+  // Sessions belonging to projects in this workspace
+  const projectIds = new Set(projects.map((p) => p.id))
+  const workspaceSessions = allSessions?.filter((s) => projectIds.has(s.project_id))
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: workspaceId })
 
@@ -289,7 +300,7 @@ function SortableWorkspaceGroup({ workspaceId, name, projects }: { workspaceId: 
 
   return (
     <div ref={setNodeRef} style={style}>
-      <Collapsible defaultOpen onOpenChange={setIsOpen}>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <SidebarMenuItem>
           <div className="group/workspace flex items-center">
             <DragHandle listeners={listeners} attributes={attributes} />
@@ -309,6 +320,7 @@ function SortableWorkspaceGroup({ workspaceId, name, projects }: { workspaceId: 
               ) : (
                 <span className="truncate flex-1 text-left">{name}</span>
               )}
+              {!isOpen && <ActivityBadge sessions={workspaceSessions} />}
             </CollapsibleTrigger>
             <div className="flex opacity-0 group-hover/workspace:opacity-100 transition-opacity">
               <button type="button" onClick={() => { setEditName(name); setEditing(true) }} className="size-5 flex items-center justify-center rounded hover:bg-sidebar-accent" title="Rename">
@@ -324,7 +336,7 @@ function SortableWorkspaceGroup({ workspaceId, name, projects }: { workspaceId: 
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProjectDragEnd}>
                 <SortableContext items={projects.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                   {projects.map((project) => (
-                    <SortableProject key={project.id} project={project} />
+                    <SortableProject key={project.id} project={project} forceOpen={forceOpen} />
                   ))}
                 </SortableContext>
               </DndContext>
@@ -341,9 +353,18 @@ function SortableWorkspaceGroup({ workspaceId, name, projects }: { workspaceId: 
 export function ProjectList() {
   const { data: projects } = useProjects()
   const { data: workspaces } = useWorkspaces()
+  const { data: allSessions } = useSessions()
   const createWorkspace = useCreateWorkspace()
   const queryClient = useQueryClient()
   const [projectSheetOpen, setProjectSheetOpen] = useState(false)
+  const location = useLocation()
+
+  // Determine which project contains the current session.
+  const currentSessionId = location.pathname.match(/\/sessions\/(.+)/)?.[1]
+  const currentSession = allSessions?.find((s) => s.id === currentSessionId)
+  const currentProjectId = currentSession?.project_id
+  const currentProject = projects?.find((p) => p.id === currentProjectId)
+  const currentWorkspaceId = currentProject?.workspace_id
 
   const ungrouped = projects?.filter((p) => !p.workspace_id) ?? []
   const grouped = workspaces?.map((ws) => ({
@@ -396,7 +417,14 @@ export function ProjectList() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWorkspaceDragEnd}>
           <SortableContext items={grouped.map((ws) => ws.id)} strategy={verticalListSortingStrategy}>
             {grouped.map((ws) => (
-              <SortableWorkspaceGroup key={ws.id} workspaceId={ws.id} name={ws.name} projects={ws.projects} />
+              <SortableWorkspaceGroup
+                key={ws.id}
+                workspaceId={ws.id}
+                name={ws.name}
+                projects={ws.projects}
+                forceOpen={ws.id === currentWorkspaceId}
+                allSessions={allSessions}
+              />
             ))}
           </SortableContext>
         </DndContext>
@@ -405,7 +433,7 @@ export function ProjectList() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUngroupedDragEnd}>
           <SortableContext items={ungrouped.map((p) => p.id)} strategy={verticalListSortingStrategy}>
             {ungrouped.map((project) => (
-              <SortableProject key={project.id} project={project} />
+              <SortableProject key={project.id} project={project} forceOpen={project.id === currentProjectId} />
             ))}
           </SortableContext>
         </DndContext>

@@ -37,12 +37,7 @@ func (p *ClaudeCodeProvider) SetupHooks(sessionID, slot, workDir, callbackURL, i
 		return &LaunchArtifacts{}, nil
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("claude: failed to get home dir: %w", err)
-	}
-
-	dir := filepath.Join(home, ".abbado", "hooks", sessionID, slot)
+	dir := filepath.Join(DataDir(), "hooks", sessionID, slot)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("claude: failed to create hooks dir: %w", err)
 	}
@@ -83,10 +78,7 @@ func (p *ClaudeCodeProvider) SetupHooks(sessionID, slot, workDir, callbackURL, i
 }
 
 func (p *ClaudeCodeProvider) Cleanup(sessionID string) {
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		os.RemoveAll(filepath.Join(home, ".abbado", "hooks", sessionID))
-	}
+	os.RemoveAll(filepath.Join(DataDir(), "hooks", sessionID))
 }
 
 func (p *ClaudeCodeProvider) OneShot(ctx context.Context, model, prompt string) (string, error) {

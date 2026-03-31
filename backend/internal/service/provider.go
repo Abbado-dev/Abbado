@@ -73,12 +73,8 @@ func (r *ProviderRegistry) Get(cliName string) Provider {
 }
 
 // CleanupSession removes all provider artifacts for a session.
-// All providers store artifacts under ~/.abbado/hooks/<sessionID>/.
 func (r *ProviderRegistry) CleanupSession(sessionID string) {
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		os.RemoveAll(filepath.Join(home, ".abbado", "hooks", sessionID))
-	}
+	os.RemoveAll(filepath.Join(DataDir(), "hooks", sessionID))
 }
 
 // runOneShot is a helper that executes a CLI in one-shot mode via stdin/stdout.
