@@ -16,6 +16,7 @@ import (
 
 	"github.com/raznak/abbado/internal/database"
 	"github.com/raznak/abbado/internal/server"
+	"github.com/raznak/abbado/internal/service"
 )
 
 const repo = "abbado-dev/abbado"
@@ -287,6 +288,9 @@ func serve() {
 	if port == "" {
 		port = "7777"
 	}
+
+	// Set data dir for services (hooks, worktrees, etc.)
+	service.SetDataDir(dataDir())
 
 	dbPath := os.Getenv("ABBADO_DB")
 	if dbPath == "" {

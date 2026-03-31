@@ -41,12 +41,9 @@ func (p *CodexProvider) SetupHooks(sessionID, slot, workDir, callbackURL, instru
 		return nil, fmt.Errorf("codex: sessionID and slot are required")
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("codex: failed to get home dir: %w", err)
-	}
+	home, _ := os.UserHomeDir()
 
-	slotDir := filepath.Join(home, ".abbado", "hooks", sessionID, slot)
+	slotDir := filepath.Join(DataDir(), "hooks", sessionID, slot)
 	if err := os.MkdirAll(slotDir, 0o755); err != nil {
 		return nil, fmt.Errorf("codex: failed to create slot dir: %w", err)
 	}
@@ -99,10 +96,7 @@ func (p *CodexProvider) SetupHooks(sessionID, slot, workDir, callbackURL, instru
 }
 
 func (p *CodexProvider) Cleanup(sessionID string) {
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		os.RemoveAll(filepath.Join(home, ".abbado", "hooks", sessionID))
-	}
+	os.RemoveAll(filepath.Join(DataDir(), "hooks", sessionID))
 }
 
 func (p *CodexProvider) OneShot(ctx context.Context, model, prompt string) (string, error) {
