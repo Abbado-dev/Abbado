@@ -41,6 +41,10 @@ abbado version    # Version
 | Real-time | SSE + CLI hooks (no polling) |
 | Git | Worktrees, GitHub PRs via gh CLI |
 
+## Acknowledgments
+
+This project was greatly inspired by [Pilou97](https://github.com/Pilou97).
+
 ## License
 
 MIT
